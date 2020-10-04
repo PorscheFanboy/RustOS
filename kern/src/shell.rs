@@ -37,12 +37,59 @@ impl<'a> Command<'a> {
 
     /// Returns this command's path. This is equivalent to the first argument.
     fn path(&self) -> &str {
-        unimplemented!()
+        return self.args[0];
     }
 }
 
 /// Starts a shell using `prefix` as the prefix for each line. This function
 /// returns if the `exit` command is called.
 pub fn shell(prefix: &str) -> ! {
-    unimplemented!()
+    let mut console = CONSOLE.lock();
+    loop {
+        let mut buffer = [""; 520];
+        let mut s : [u8; 520] = [0u8; 520];
+        kprint!("{}", prefix);
+        let mut idx: usize = 0;
+        loop {
+            let b = console.read_byte();
+            if b == b'\r' || b == b'\n' {
+                s[idx] = ' ' as u8;
+                break;
+            }
+            if b == 8 {
+                kprint!("{}", 8 as char);
+                kprint!("{}", ' ');
+                kprint!("{}", 8 as char);
+                idx -= 1;
+                s[idx] = 0;
+                continue;
+            }
+            kprint!("{}", b as char);
+            s[idx] = b;
+            idx += 1;
+        }
+        let ss = &core::str::from_utf8(&s).unwrap()[..];
+        match Command::parse(ss, &mut buffer) {
+            Err(_) => {
+                kprintln!();
+                kprintln!("ASDF");
+            },
+            Ok(cmd) => {
+                match cmd.path() {
+                    "exit" => (),
+                    "echo" => {
+                        kprintln!();
+                        for i in 1..cmd.args.len() {
+                            kprint!("{} ", cmd.args[i]);
+                        }
+                        kprintln!();
+                    },
+                    _ => {
+                        kprintln!();
+                        kprintln!("unknown command {}", cmd.path());
+                    }
+                }
+            },
+        }
+    }
 }

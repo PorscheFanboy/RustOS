@@ -182,7 +182,17 @@ impl<T: io::Read + io::Write> Xmodem<T> {
     /// byte was not `byte`, if the read byte was `CAN` and `byte` is not `CAN`,
     /// or if writing the `CAN` byte failed on byte mismatch.
     fn expect_byte_or_cancel(&mut self, byte: u8, expected: &'static str) -> io::Result<u8> {
-        unimplemented!()
+        let b = self.read_byte(false)?;
+        if b == byte {
+            return Ok(b);
+        } else{
+            self.write_byte(CAN)?;
+            if b != CAN {
+                return ioerr!(InvalidData, expected);
+            } else {
+                return ioerr!(ConnectionAborted, expected);
+            }
+        }
     }
 
     /// Reads a single byte from the inner I/O stream and compares it to `byte`.
@@ -197,7 +207,16 @@ impl<T: io::Read + io::Write> Xmodem<T> {
     /// of `ConnectionAborted` is returned. Otherwise, the error kind is
     /// `InvalidData`.
     fn expect_byte(&mut self, byte: u8, expected: &'static str) -> io::Result<u8> {
-        unimplemented!()
+        let b = self.read_byte(false)?;
+        if b == byte {
+            return Ok(b);
+        } else{
+            if b != CAN {
+                return ioerr!(InvalidData, expected);
+            } else {
+                return ioerr!(ConnectionAborted, "received CAN");
+            }
+        }
     }
 
     /// Reads (downloads) a single packet from the inner stream using the XMODEM
@@ -224,7 +243,47 @@ impl<T: io::Read + io::Write> Xmodem<T> {
     ///
     /// An error of kind `UnexpectedEof` is returned if `buf.len() < 128`.
     pub fn read_packet(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        unimplemented!()
+        if buf.len() < 128 && buf.len() != 0 {
+            return ioerr!(UnexpectedEof, "too short");
+        }
+
+        if !self.started {
+            self.write_byte(NAK)?;
+            (self.progress)(Progress::Started);
+            self.started = true;
+        }
+        let b = self.read_byte(true)?;
+        if b == EOT {
+            self.write_byte(NAK)?;
+            self.expect_byte(EOT, "EOT")?;
+            self.write_byte(ACK)?;
+            return Ok(0);
+        } else if b == SOH {
+            self.expect_byte_or_cancel(self.packet, "wrong packet number")?;
+            self.expect_byte_or_cancel(255 - self.packet, "wrong packet complement")?;
+            for i in 0..128 {
+                let byte = self.read_byte(false)?;
+                buf[i] = byte;
+            }
+            let check_sum = get_checksum(buf);
+            let cs = self.read_byte(false)?;
+            if cs == check_sum {
+                self.write_byte(ACK)?;
+                (self.progress)(Progress::Packet(self.packet));
+                if self.packet == 255 {
+                    self.packet = 0;
+                } else {
+                    self.packet += 1;
+                }
+                return Ok(128);
+            } else {
+                self.write_byte(NAK)?;
+                return ioerr!(Interrupted, "wrong checksum");
+            }
+
+        } else {
+            return ioerr!(InvalidData, "InvalidData");
+        }
     }
 
     /// Sends (uploads) a single packet to the inner stream using the XMODEM
@@ -258,7 +317,45 @@ impl<T: io::Read + io::Write> Xmodem<T> {
     ///
     /// An error of kind `Interrupted` is returned if a packet checksum fails.
     pub fn write_packet(&mut self, buf: &[u8]) -> io::Result<usize> {
-        unimplemented!()
+        if buf.len() < 128 && buf.len() != 0 {
+            return ioerr!(UnexpectedEof, "too short");
+        }
+        if !self.started {
+            (self.progress)(Progress::Waiting);
+            self.expect_byte(NAK, "not NAK")?;
+            self.started = true;
+            (self.progress)(Progress::Started);
+        }
+        if buf.len() == 0 {
+            self.write_byte(EOT)?;
+            self.expect_byte(NAK, "not NAK")?;
+            self.write_byte(EOT)?;
+            self.expect_byte(ACK, "not NAK")?;
+            return Ok(0);
+        }
+        self.write_byte(SOH)?;
+        self.write_byte(self.packet)?;
+        self.write_byte(255 - self.packet)?;
+        let mut cnt = 0;
+        for b in buf {
+            self.write_byte(*b)?;
+            cnt += 1;
+        }
+        self.write_byte(get_checksum(buf))?;
+        let b = self.read_byte(true)?;
+        if b == NAK {
+            return ioerr!(Interrupted, "Interrupted");
+        } else if b == ACK {
+            if self.packet == 255 {
+                self.packet = 0;
+            } else {
+                self.packet += 1;
+            }
+            (self.progress)(Progress::Packet(self.packet));
+            return Ok(cnt);
+        } else {
+            return ioerr!(InvalidData, "InvalidData");
+        }
     }
 
     /// Flush this output stream, ensuring that all intermediately buffered
