@@ -4,13 +4,18 @@
 #![feature(asm)]
 #![feature(global_asm)]
 #![feature(optin_builtin_traits)]
+#![feature(raw_vec_internals)]
 #![cfg_attr(not(test), no_std)]
 #![cfg_attr(not(test), no_main)]
 
 #[cfg(not(test))]
 mod init;
 
+extern crate alloc;
+
+pub mod allocator;
 pub mod console;
+pub mod fs;
 pub mod mutex;
 pub mod shell;
 
@@ -56,6 +61,13 @@ unsafe fn set_led_state(x: u32) {
 // FIXME: You need to add dependencies here to
 // test your drivers (Phase 2). Add them as needed.
 
+use allocator::Allocator;
+use fs::FileSystem;
+
+#[cfg_attr(not(test), global_allocator)]
+pub static ALLOCATOR: Allocator = Allocator::uninitialized();
+pub static FILESYSTEM: FileSystem = FileSystem::uninitialized();
+
 fn kmain() -> ! {
     unsafe {
         for i in 0..1 {
@@ -65,9 +77,57 @@ fn kmain() -> ! {
             spin_sleep(Duration::from_secs(1));
         }
     }
-    // FIXME: Start the shell.
-    kprintln!("Welcome to cs3210!");
-    loop {
-        shell::shell("> ");
+    let mut atag = pi::atags::Atags::get();
+    while let tag = atag.next() {
+        match tag {
+            None => break,
+            Some(t) => kprintln!("{:#?}", t),
+        }
     }
+    unsafe {
+        ALLOCATOR.initialize();
+        FILESYSTEM.initialize();
+    }
+    use fat32::traits::{FileSystem, Dir};
+    use fat32::vfat::{Entry, File, VFat, VFatHandle};
+    use shim::io::Read;
+    use shim::path::*;
+    let path = Path::new("/");
+    let entry = FILESYSTEM.open(&path).unwrap();
+    // kprintln!("{:?}", entry);
+    /*
+    match entry {
+        Entry::Dossier(d) => {
+            for ent in d.entries().unwrap() {
+                match ent {
+                    Entry::Dossier(dd) => {
+                        kprintln!("dossier {}", dd.name);
+                    },
+                    Entry::Fichier(ff) => {
+                        kprintln!("fichier {}", ff.name);
+                    }
+                }
+            }
+        },
+        Entry::Fichier(mut f) => {
+            kprintln!("{:?} {}", f.name, f.size);
+            kprintln!("FICHIER");
+            let mut buf: [u8; 50] = [0; 50];
+            f.read(&mut buf);
+            /*
+
+            use core::str;
+            let s = match str::from_utf8(&buf[0..f.size as usize]) {
+                Ok(v) => v,
+                Err(e) => panic!("Invalid UTF-8 sequence: {}", e),
+            };
+            kprintln!("{}", s);
+            */
+            kprintln!("DONE reading file");
+        },
+    }
+    */
+
+    kprintln!("Welcome to cs3210!");
+    shell::shell("> ");
 }
