@@ -4,6 +4,7 @@
 #![feature(asm)]
 #![feature(global_asm)]
 #![feature(optin_builtin_traits)]
+#![feature(ptr_internals)]
 #![feature(raw_vec_internals)]
 #![cfg_attr(not(test), no_std)]
 #![cfg_attr(not(test), no_main)]
@@ -12,15 +13,23 @@
 mod init;
 
 extern crate alloc;
+#[macro_use]
+extern crate log;
 
 pub mod allocator;
 pub mod console;
 pub mod fs;
+pub mod logger;
 pub mod mutex;
+pub mod net;
+pub mod param;
+pub mod percore;
+pub mod process;
 pub mod shell;
+pub mod traps;
+pub mod vm;
 
 use console::kprintln;
-
 use pi::timer::*;
 use core::time::Duration;
 
@@ -63,19 +72,46 @@ unsafe fn set_led_state(x: u32) {
 
 use allocator::Allocator;
 use fs::FileSystem;
+use net::uspi::Usb;
+use net::GlobalEthernetDriver;
+use process::GlobalScheduler;
+use traps::irq::{Fiq, GlobalIrq};
+use vm::VMManager;
 
 #[cfg_attr(not(test), global_allocator)]
 pub static ALLOCATOR: Allocator = Allocator::uninitialized();
 pub static FILESYSTEM: FileSystem = FileSystem::uninitialized();
+pub static SCHEDULER: GlobalScheduler = GlobalScheduler::uninitialized();
+pub static VMM: VMManager = VMManager::uninitialized();
+pub static USB: Usb = Usb::uninitialized();
+pub static GLOABAL_IRQ: GlobalIrq = GlobalIrq::new();
+pub static FIQ: Fiq = Fiq::new();
+pub static ETHERNET: GlobalEthernetDriver = GlobalEthernetDriver::uninitialized();
 
-fn kmain() -> ! {
-    unsafe {
-        for i in 0..1 {
-            set_led_state(1);
-            spin_sleep(Duration::from_secs(1));
-            set_led_state(0);
-            spin_sleep(Duration::from_secs(1));
-        }
+extern "C" {
+    static __text_beg: u64;
+    static __text_end: u64;
+    static __bss_beg: u64;
+    static __bss_end: u64;
+}
+
+unsafe fn kmain() -> ! {
+    crate::logger::init_logger();
+
+    info!(
+        "text beg: {:016x}, end: {:016x}",
+        &__text_beg as *const _ as u64, &__text_end as *const _ as u64
+    );
+    info!(
+        "bss  beg: {:016x}, end: {:016x}",
+        &__bss_beg as *const _ as u64, &__bss_end as *const _ as u64
+    );
+
+    for i in 0..1 {
+        set_led_state(1);
+        spin_sleep(Duration::from_secs(1));
+        set_led_state(0);
+        spin_sleep(Duration::from_secs(1));
     }
     let mut atag = pi::atags::Atags::get();
     while let tag = atag.next() {
@@ -84,10 +120,10 @@ fn kmain() -> ! {
             Some(t) => kprintln!("{:#?}", t),
         }
     }
-    unsafe {
-        ALLOCATOR.initialize();
-        FILESYSTEM.initialize();
-    }
+
+    ALLOCATOR.initialize();
+    FILESYSTEM.initialize();
+
     use fat32::traits::{FileSystem, Dir};
     use fat32::vfat::{Entry, File, VFat, VFatHandle};
     use shim::io::Read;

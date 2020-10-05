@@ -5,8 +5,8 @@ SECTIONS {
   __text_beg = .;
 
   .text : {
-      KEEP(*(.text.init)) /* from init.S */
-      *(.text .text.* .gnu.linkonce.t*)
+        *(.text._start)
+        *(.text .text.* .gnu.linkonce.t*)
   }
 
   .rodata : {
