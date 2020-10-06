@@ -45,10 +45,17 @@ impl From<usize> for Interrupt {
     }
 }
 
-#[repr(C)]
+#[repr(C, packed)]
 #[allow(non_snake_case)]
 struct Registers {
     // FIXME: Fill me in.
+    irq_basic_pending: u32,
+    irq_pending: u64,
+    fiq_control: u32,
+    enable_irqs: u64,
+    enable_basic_irqs: u32,
+    disable_irqs: u64,
+    disable_basic_irqs: u32,
 }
 
 /// An interrupt controller. Used to enable and disable interrupts as well as to
@@ -67,17 +74,17 @@ impl Controller {
 
     /// Enables the interrupt `int`.
     pub fn enable(&mut self, int: Interrupt) {
-        unimplemented!()
+        self.registers.enable_irqs |= ((1 as u64) << (int as usize));
     }
 
     /// Disables the interrupt `int`.
     pub fn disable(&mut self, int: Interrupt) {
-        unimplemented!()
+        self.registers.disable_irqs |= ((1 as u64) << (int as usize));
     }
 
     /// Returns `true` if `int` is pending. Otherwise, returns `false`.
     pub fn is_pending(&self, int: Interrupt) -> bool {
-        unimplemented!()
+        return (self.registers.irq_pending & ((1 as u64) << (int as usize))) > 0;
     }
 
     /// Enables the interrupt as FIQ interrupt

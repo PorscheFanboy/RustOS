@@ -13,6 +13,10 @@ use self::syscall::handle_syscall;
 use crate::percore;
 use crate::traps::irq::IrqHandlerRegistry;
 
+use crate::console::kprintln;
+use crate::shell;
+use crate::GLOBAL_IRQ;
+
 #[repr(u16)]
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Kind {
@@ -44,5 +48,33 @@ pub struct Info {
 /// the trap frame for the exception.
 #[no_mangle]
 pub extern "C" fn handle_exception(info: Info, esr: u32, tf: &mut TrapFrame) {
-    unimplemented!("handle_exception")
+    // kprintln!("{:?} {:?} {:b}", info.source, info.kind, esr);
+    match info.kind {
+        Kind::Synchronous => {
+            let syn = Syndrome::from(esr);
+            // kprintln!("{:?}", syn);
+            match syn {
+                Syndrome::Brk(k) => {
+                    tf.elr_el += 4;
+                    shell::shell("Brk! ");
+                    return;
+                },
+                Syndrome::Svc(n) => {
+                    handle_syscall(n, tf);
+                    return;
+                }
+                _ => {
+                    kprintln!("Error");
+                    return;
+                },
+            }
+        },
+        Kind::Irq => {
+            GLOBAL_IRQ.invoke(Interrupt::Timer1, tf);
+            return;
+        }
+        _ => {
+            return;
+        }
+    }
 }

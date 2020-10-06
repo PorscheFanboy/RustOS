@@ -1,11 +1,12 @@
 use alloc::boxed::Box;
 use core::time::Duration;
+use pi::timer::*;
 
 use smoltcp::wire::{IpAddress, IpEndpoint};
 
 use crate::console::{kprint, CONSOLE};
 use crate::param::USER_IMG_BASE;
-use crate::process::State;
+use crate::process::{Process, State};
 use crate::traps::TrapFrame;
 use crate::{ETHERNET, SCHEDULER};
 
@@ -19,7 +20,17 @@ use kernel_api::*;
 /// parameter: the approximate true elapsed time from when `sleep` was called to
 /// when `sleep` returned.
 pub fn sys_sleep(ms: u32, tf: &mut TrapFrame) {
-    unimplemented!("sys_sleep()")
+    let start = current_time();
+    let end = start + Duration::from_millis(ms as u64);
+    let f = Box::new(move |p: &mut Process| {
+        if current_time() < end {
+            false
+        } else {
+            true
+        }
+    });
+    SCHEDULER.switch(State::Waiting(f), tf);
+    tf.xs[0] = (current_time() - start).as_millis() as u64;
 }
 
 /// Returns current time.
@@ -47,7 +58,7 @@ pub fn sys_exit(tf: &mut TrapFrame) {
 ///
 /// It only returns the usual status value.
 pub fn sys_write(b: u8, tf: &mut TrapFrame) {
-    unimplemented!("sys_write()")
+    kprint!("{}", b as char);
 }
 
 /// Returns the current process's ID.
@@ -237,5 +248,14 @@ pub fn sys_write_str(va: usize, len: usize, tf: &mut TrapFrame) {
 }
 
 pub fn handle_syscall(num: u16, tf: &mut TrapFrame) {
-    unimplemented!("handle_syscall()")
+    use crate::console::kprintln;
+    match num {
+        1 => {
+            sys_sleep(tf.xs[0] as u32, tf);
+        },
+        4 => {
+            sys_write(tf.xs[0] as u8, tf);
+        }
+        _ => (),
+    }
 }

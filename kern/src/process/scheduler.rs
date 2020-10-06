@@ -20,6 +20,14 @@ use crate::traps::irq::IrqHandlerRegistry;
 use crate::traps::TrapFrame;
 use crate::{ETHERNET, USB};
 
+use crate::VMM;
+use crate::GLOBAL_IRQ;
+use crate::shell;
+use crate::SCHEDULER;
+use crate::console::kprintln;
+use pi::timer::*;
+use pi::interrupt::*;
+
 /// Process scheduler for the entire machine.
 #[derive(Debug)]
 pub struct GlobalScheduler(Mutex<Option<Box<Scheduler>>>);
@@ -92,7 +100,57 @@ impl GlobalScheduler {
     /// preemptive scheduling. This method should not return under normal
     /// conditions.
     pub fn start(&self) -> ! {
-        unimplemented!("GlobalScheduler::start()")
+        /*
+        extern "C" {
+            static _start: u64;
+        }
+        let mut p = Process::new().unwrap();
+        p.context.sp_el = p.stack.top().as_u64();
+        let ptr = run_shell as *const u64;
+        p.context.elr_el = ptr as u64;
+        */
+        let mut tf = Box::new(TrapFrame{
+            ttbr0_el: 0,
+            ttbr1_el: 0,
+            elr_el: 0,
+            spsr_el: 0,
+            sp_el: 0,
+            tpidr_el: 0,
+            qs: [0; 32],
+            xs: [0; 32],
+        });
+        self.switch_to(&mut tf);
+        // kprintln!("{:x} {:x}", tf.ttbr0_el, tf.ttbr1_el);
+        // kprintln!("STARTED");
+        self.initialize_global_timer_interrupt();
+
+        unsafe {
+            // let start_addr: *const u64 = & _start;
+            // kprintln!("{} {}", ptr as u64, start_addr as u64);
+            // sti();
+            asm!("mov sp, $0
+                  bl context_restore
+                  ldr x0, =_start
+                  mov sp, x0
+                  mov x0, #0x0
+                  eret"
+                  :: "r"(tf)
+                  :: "volatile");
+        }
+        /*
+        unsafe {
+            asm!("mov x0, $1
+                  msr SP_EL0, x0
+                  msr ELR_EL1, $2
+                  eret"
+                  :: "r"(p.context), "r"(p.stack.top().as_u64()), "r"(ptr as u64)
+                  :: "volatile");
+        }
+        */
+
+        loop {
+            nop();
+        }
     }
 
     /// # Lab 4
@@ -104,7 +162,10 @@ impl GlobalScheduler {
     /// Registers a timer handler with `Usb::start_kernel_timer` which will
     /// invoke `poll_ethernet` after 1 second.
     pub fn initialize_global_timer_interrupt(&self) {
-        unimplemented!("initialize_global_timer_interrupt()")
+        let mut int_controller = Controller::new();
+        int_controller.enable(Interrupt::Timer1);
+        tick_in(TICK);
+        GLOBAL_IRQ.register(Interrupt::Timer1, Box::new(timer_handle));
     }
 
     /// Initializes the per-core local timer interrupt with `pi::local_interrupt`.
@@ -117,7 +178,12 @@ impl GlobalScheduler {
 
     /// Initializes the scheduler and add userspace processes to the Scheduler.
     pub unsafe fn initialize(&self) {
-        unimplemented!("GlobalScheduler::initialize()")
+        *self.0.lock() = Some(Scheduler::new());
+        use shim::path::Path;
+        for i in 0..4 {
+            let p = Process::load(Path::new("/fib.bin")).unwrap();
+            self.add(p);
+        }
     }
 
     // The following method may be useful for testing Lab 4 Phase 3:
@@ -154,7 +220,10 @@ pub struct Scheduler {
 impl Scheduler {
     /// Returns a new `Scheduler` with an empty queue.
     fn new() -> Box<Scheduler> {
-        unimplemented!("Scheduler::new()")
+        return Box::new(Scheduler {
+            processes: VecDeque::new(),
+            last_id: None,
+        });
     }
 
     /// Adds a process to the scheduler's queue and returns that process's ID if
@@ -165,7 +234,15 @@ impl Scheduler {
     /// It is the caller's responsibility to ensure that the first time `switch`
     /// is called, that process is executing on the CPU.
     fn add(&mut self, mut process: Process) -> Option<Id> {
-        unimplemented!("Scheduler::add()")
+        match self.last_id {
+            None => self.last_id = Some(1),
+            Some(id) => self.last_id = Some(id + 1),
+        }
+        process.context.tpidr_el = self.last_id.unwrap();
+        // process.state = State::Ready;
+        self.processes.push_back(process);
+        // kprintln!("{:?}",self.processes);
+        return self.last_id;
     }
 
     /// Finds the currently running process, sets the current process's state
@@ -176,7 +253,19 @@ impl Scheduler {
     /// If the `processes` queue is empty or there is no current process,
     /// returns `false`. Otherwise, returns `true`.
     fn schedule_out(&mut self, new_state: State, tf: &mut TrapFrame) -> bool {
-        unimplemented!("Scheduler::schedule_out()")
+        for i in 0..self.processes.len() {
+            match self.processes[i].state {
+                State::Running => {
+                    self.processes[i].state = new_state;
+                    self.processes[i].context = Box::new(*tf);
+                    let p = self.processes.remove(i).unwrap();
+                    self.processes.push_back(p);
+                    return true;
+                },
+                _ => (),
+            }
+        }
+        return false;
     }
 
     /// Finds the next process to switch to, brings the next process to the
@@ -187,7 +276,17 @@ impl Scheduler {
     /// If there is no process to switch to, returns `None`. Otherwise, returns
     /// `Some` of the next process`s process ID.
     fn switch_to(&mut self, tf: &mut TrapFrame) -> Option<Id> {
-        unimplemented!("Scheduler::switch_to()")
+        for i in 0..self.processes.len() {
+            if self.processes[i].is_ready() {
+                self.processes[i].state = State::Running;
+                *tf = *self.processes[i].context;
+                let id = self.processes[i].context.tpidr_el;
+                let p = self.processes.remove(i).unwrap();
+                self.processes.push_front(p);
+                return Some(id);
+            }
+        }
+        return None;
     }
 
     /// Kills currently running process by scheduling out the current process
@@ -248,4 +347,10 @@ pub extern "C" fn  test_user_process() -> ! {
                  : "volatile");
         }
     }
+}
+
+pub fn timer_handle(tf: &mut TrapFrame) {
+    tick_in(TICK);
+    SCHEDULER.switch(State::Ready, tf);
+    return;
 }

@@ -84,7 +84,7 @@ pub static FILESYSTEM: FileSystem = FileSystem::uninitialized();
 pub static SCHEDULER: GlobalScheduler = GlobalScheduler::uninitialized();
 pub static VMM: VMManager = VMManager::uninitialized();
 pub static USB: Usb = Usb::uninitialized();
-pub static GLOABAL_IRQ: GlobalIrq = GlobalIrq::new();
+pub static GLOBAL_IRQ: GlobalIrq = GlobalIrq::new();
 pub static FIQ: Fiq = Fiq::new();
 pub static ETHERNET: GlobalEthernetDriver = GlobalEthernetDriver::uninitialized();
 
@@ -124,6 +124,7 @@ unsafe fn kmain() -> ! {
     ALLOCATOR.initialize();
     FILESYSTEM.initialize();
 
+    /*
     use fat32::traits::{FileSystem, Dir};
     use fat32::vfat::{Entry, File, VFat, VFatHandle};
     use shim::io::Read;
@@ -131,7 +132,6 @@ unsafe fn kmain() -> ! {
     let path = Path::new("/");
     let entry = FILESYSTEM.open(&path).unwrap();
     // kprintln!("{:?}", entry);
-    /*
     match entry {
         Entry::Dossier(d) => {
             for ent in d.entries().unwrap() {
@@ -163,6 +163,16 @@ unsafe fn kmain() -> ! {
         },
     }
     */
+    VMM.initialize();
+    // kprintln!("VMM INITIALIZED");
+    SCHEDULER.initialize();
+    // init::initialize_app_cores();
+    VMM.wait();
+    // VMM.setup();
+    // kprintln!("HERE");
+    SCHEDULER.start();
+    loop {
+    }
 
     kprintln!("Welcome to cs3210!");
     shell::shell("> ");

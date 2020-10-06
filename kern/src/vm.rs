@@ -34,7 +34,9 @@ impl VMManager {
     /// The caller should assure that the method is invoked only once during the kernel
     /// initialization.
     pub unsafe fn initialize(&self) {
-        unimplemented!()
+        *self.kern_pt.lock() = Some(KernPageTable::new());
+        let kern_pt_addr = self.kern_pt.lock().as_mut().unwrap().get_baddr();
+        self.kern_pt_addr.store(kern_pt_addr.as_usize(), Ordering::Relaxed);
     }
 
     /// Set up the virtual memory manager for the current core.
@@ -102,11 +104,11 @@ impl VMManager {
         info!("MMU is ready for core-{}/@sp={:016x}", affinity(), SP.get());
 
         // Lab 5 1.B
-        unimplemented!("wait for other cores")
+        // unimplemented!("wait for other cores")
     }
 
     /// Returns the base address of the kernel page table as `PhysicalAddr`.
     pub fn get_baddr(&self) -> PhysicalAddr {
-        unimplemented!()
+        return PhysicalAddr::from(self.kern_pt_addr.load(Ordering::Relaxed));
     }
 }

@@ -113,11 +113,14 @@ where
 {
     /// Register an irq handler for an interrupt.
     fn register(&self, int: I, handler: IrqHandler) {
-        unimplemented!("register()")
+        *self[int].lock() = Some(handler);
     }
 
     /// Executes an irq handler for the given interrupt.
     fn invoke(&self, int: I, tf: &mut TrapFrame) {
-        unimplemented!("invoke()")
+        match self[int].lock().as_mut() {
+            None => return,
+            Some(fun) => fun(tf),
+        }
     }
 }
