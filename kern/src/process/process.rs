@@ -90,7 +90,9 @@ impl Process {
         use shim::io::Read;
         let entry = FILESYSTEM.open(pn.as_ref()).unwrap();
         let mut f = entry.into_file().unwrap();
-        let mut buf: [u8; 10000] = [0; 10000];
+        // let mut buf: [u8; 10000] = [0; 10000];
+        // kprintln!("size {}", f.size);
+        let mut buf: Vec<u8> = vec![0; f.size as usize];
         f.read(&mut buf);
         let mut p = Process::new().unwrap();
         // let stack = p.vmap.alloc(Process::get_stack_base() - VirtualAddr::from(PAGE_SIZE), PagePerm::RW);
@@ -98,6 +100,7 @@ impl Process {
             p.vmap.alloc(Process::get_stack_base() - VirtualAddr::from(PAGE_SIZE * i), PagePerm::RW);
         }
         let mut idx: usize = 0;
+        use crate::console::kprintln;
         for i in 0..1000 {
             if idx == f.size as usize {
                 return Ok(p);

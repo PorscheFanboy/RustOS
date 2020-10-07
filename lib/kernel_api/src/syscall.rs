@@ -47,11 +47,33 @@ pub fn exit() -> ! {
 }
 
 pub fn write(b: u8) {
-    unimplemented!("write()")
+    unsafe {
+        asm!("mov x0, $0
+              svc $1"
+             :
+             : "r"(b), "i"(NR_WRITE)
+             :
+             : "volatile");
+    }
 }
 
 pub fn write_str(msg: &str) {
-    unimplemented!("write_str()")
+    let mut len = 0;
+    let mut arr: [u8; 100] = [0; 100];
+    for b in msg.bytes() {
+        arr[len] = b;
+        len += 1;
+    }
+
+    unsafe {
+        asm!("mov x0, $0
+              mov x1, $1
+              svc $2"
+             :
+             : "r"(arr.as_ptr()), "r"(len), "i"(NR_WRITE_STR)
+             :
+             : "volatile");
+    }
 }
 
 pub fn getpid() -> u64 {

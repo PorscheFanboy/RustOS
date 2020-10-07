@@ -12,6 +12,7 @@
 #[cfg(not(test))]
 mod init;
 
+#[macro_use]
 extern crate alloc;
 #[macro_use]
 extern crate log;

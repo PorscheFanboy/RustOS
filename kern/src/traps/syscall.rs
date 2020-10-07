@@ -4,7 +4,7 @@ use pi::timer::*;
 
 use smoltcp::wire::{IpAddress, IpEndpoint};
 
-use crate::console::{kprint, CONSOLE};
+use crate::console::{kprint, kprintln, CONSOLE};
 use crate::param::USER_IMG_BASE;
 use crate::process::{Process, State};
 use crate::traps::TrapFrame;
@@ -236,6 +236,7 @@ pub fn sys_write_str(va: usize, len: usize, tf: &mut TrapFrame) {
 
     match result {
         Ok(msg) => {
+            use alloc::string::String;
             kprint!("{}", msg);
 
             tf.xs[0] = msg.len() as u64;
@@ -255,6 +256,9 @@ pub fn handle_syscall(num: u16, tf: &mut TrapFrame) {
         },
         4 => {
             sys_write(tf.xs[0] as u8, tf);
+        }
+        6 => {
+            sys_write_str(tf.xs[0] as usize, tf.xs[1] as usize, tf);
         }
         _ => (),
     }

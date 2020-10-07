@@ -4,6 +4,21 @@ use core::ptr::write_volatile;
 
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! {
+    /*
+    use kernel_api::println;
+    // println!("QWER");
+    if let Some(s) = _info.payload().downcast_ref::<&str>() {
+        println!("panic occurred: {:?}", s);
+    } else {
+        println!("panic occurred");
+    }
+    if let Some(location) = _info.location() {
+        println!("panic occurred in file '{}' at line {}", location.file(),
+            location.line());
+    } else {
+        println!("No idea where the panic occured");
+    }
+    */
     loop {}
 }
 
