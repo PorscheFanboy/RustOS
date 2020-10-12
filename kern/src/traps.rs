@@ -52,7 +52,7 @@ pub extern "C" fn handle_exception(info: Info, esr: u32, tf: &mut TrapFrame) {
     match info.kind {
         Kind::Synchronous => {
             let syn = Syndrome::from(esr);
-            // kprintln!("{:?}", syn);
+           // kprintln!("{:?}", syn);
             match syn {
                 Syndrome::Brk(k) => {
                     tf.elr_el += 4;
@@ -63,8 +63,8 @@ pub extern "C" fn handle_exception(info: Info, esr: u32, tf: &mut TrapFrame) {
                     handle_syscall(n, tf);
                     return;
                 }
-                _ => {
-                    kprintln!("Error");
+                k => {
+                    // kprintln!("Error");
                     return;
                 },
             }

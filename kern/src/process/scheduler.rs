@@ -122,12 +122,15 @@ impl GlobalScheduler {
         self.switch_to(&mut tf);
         // kprintln!("{:x} {:x}", tf.ttbr0_el, tf.ttbr1_el);
         // kprintln!("STARTED");
-        self.initialize_global_timer_interrupt();
+        // self.initialize_global_timer_interrupt();
 
+
+        let mut ptr = Box::new(SP.get());
         unsafe {
             // let start_addr: *const u64 = & _start;
             // kprintln!("{} {}", ptr as u64, start_addr as u64);
             // sti();
+            /*
             asm!("mov sp, $0
                   bl context_restore
                   ldr x0, =_start
@@ -135,6 +138,14 @@ impl GlobalScheduler {
                   mov x0, #0x0
                   eret"
                   :: "r"(tf)
+                  :: "volatile");
+                  */
+            asm!("mov sp, $0
+                  bl context_restore
+                  mov sp, $1
+                  mov x0, #0x0
+                  eret"
+                  :: "r"(tf), "r"(*ptr)
                   :: "volatile");
         }
         /*
@@ -181,7 +192,7 @@ impl GlobalScheduler {
         *self.0.lock() = Some(Scheduler::new());
         use shim::path::Path;
         for i in 0..4 {
-            let p = Process::load(Path::new("/fib.bin")).unwrap();
+            let p = Process::load(Path::new("/fib")).unwrap();
             self.add(p);
         }
     }

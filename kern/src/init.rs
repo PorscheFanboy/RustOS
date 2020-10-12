@@ -9,6 +9,9 @@ mod panic;
 use crate::kmain;
 use crate::param::*;
 use crate::VMM;
+use crate::SCHEDULER;
+
+use crate::console::kprintln;
 
 global_asm!(include_str!("init/vectors.s"));
 
@@ -118,7 +121,8 @@ unsafe fn kinit() -> ! {
 #[no_mangle]
 pub unsafe extern "C" fn start2() -> ! {
     // Lab 5 1.A
-    unimplemented!("start2")
+    SP.set(KERN_STACK_BASE - MPIDR_EL1.get_value(MPIDR_EL1::Aff0) as usize* KERN_STACK_SIZE);
+    kinit2();
 }
 
 unsafe fn kinit2() -> ! {
@@ -129,12 +133,52 @@ unsafe fn kinit2() -> ! {
 
 unsafe fn kmain2() -> ! {
     // Lab 5 1.A
-    unimplemented!("kmain2")
+    /*
+    kprintln!("{}", MPIDR_EL1.get_value(MPIDR_EL1::Aff0));
+    kprintln!("{}", MPIDR_EL1.get_value(MPIDR_EL1::Aff0));
+    kprintln!("{}", MPIDR_EL1.get_value(MPIDR_EL1::Aff0));
+    kprintln!("{}", MPIDR_EL1.get_value(MPIDR_EL1::Aff0));
+    kprintln!("{}", MPIDR_EL1.get_value(MPIDR_EL1::Aff0));
+    kprintln!("{}", MPIDR_EL1.get_value(MPIDR_EL1::Aff0));
+    kprintln!("{}", MPIDR_EL1.get_value(MPIDR_EL1::Aff0));
+    kprintln!("{}", MPIDR_EL1.get_value(MPIDR_EL1::Aff0));
+    kprintln!("{}", MPIDR_EL1.get_value(MPIDR_EL1::Aff0));
+    kprintln!("{}", MPIDR_EL1.get_value(MPIDR_EL1::Aff0));
+    */
+    ((SPINNING_BASE as usize + MPIDR_EL1.get_value(MPIDR_EL1::Aff0) as usize * 8) as *mut usize).write_volatile(0);
+    VMM.wait();
+    // kprintln!("{}", current_el());
+    // kprintln!("CORE {}", MPIDR_EL1.get_value(MPIDR_EL1::Aff0));
+    // pi::timer::spin_sleep(core::time::Duration::from_millis((affinity() * 100) as u64));
+    SCHEDULER.start();
+    loop {
+        kprintln!("CORE {}", MPIDR_EL1.get_value(MPIDR_EL1::Aff0));
+    }
 }
 
 /// Wakes up each app core by writing the address of `init::start2`
 /// to their spinning base and send event with `sev()`.
 pub unsafe fn initialize_app_cores() {
     // Lab 5 1.A
-    unimplemented!("initialize_app_cores")
+    /*
+    for core in 1..=3 {
+        let v = SPINNING_BASE.add(core);
+        v.write_volatile(start2 as usize);
+        sev();
+        while v.read_volatile() != 0 {
+            pi::timer::spin_sleep(core::time::Duration::from_millis(200));
+        }
+    }
+    */
+    for i in 1..pi::common::NCORES {
+        let addr = (SPINNING_BASE as usize + i * 8) as *mut usize;
+        addr.write_volatile(start2 as usize);
+    }
+    sev();
+    for i in 1..pi::common::NCORES {
+        let addr = (SPINNING_BASE as usize + i * 8) as *mut usize;
+        while addr.read_volatile() != 0 {
+            nop();
+        }
+    }
 }

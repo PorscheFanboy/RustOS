@@ -167,12 +167,14 @@ unsafe fn kmain() -> ! {
     VMM.initialize();
     // kprintln!("VMM INITIALIZED");
     SCHEDULER.initialize();
-    // init::initialize_app_cores();
+    init::initialize_app_cores();
     VMM.wait();
     // VMM.setup();
     // kprintln!("HERE");
     SCHEDULER.start();
+    use aarch64::*;
     loop {
+        kprintln!("CORE {}",MPIDR_EL1.get_value(MPIDR_EL1::Aff0));
     }
 
     kprintln!("Welcome to cs3210!");

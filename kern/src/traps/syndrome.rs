@@ -63,6 +63,64 @@ impl From<u32> for Syndrome {
             return Svc((esr & 0b1111111111111111) as u16);
         }
         return Unknown;
+        use self::Syndrome::*;
+
+        let exception_class = esr >> 26;
+        let iss = esr & 0xFFFFFF;
+
+        match exception_class {
+            0b000000 => Unknown,
+            0b000001 => WfiWfe,
+            /*
+            0b000011 => McrMrc,
+            0b000100 => McrrMrrc,
+            0b000101 => McrMrc,
+            0b000110 => LdcStc,
+            */
+            0b000111 => SimdFp,
+            /*
+            0b001000 => Vmrs,
+            0b001100 => Mrrc,
+            */
+            0b001110 => IllegalExecutionState,
+            0b010001 => Svc((iss & 0xFFFF) as u16),
+            0b010010 => Hvc((iss & 0xFFFF) as u16),
+            0b010011 => Smc((iss & 0xFFFF) as u16),
+            0b010101 => Svc((iss & 0xFFFF) as u16),
+            0b010110 => Hvc((iss & 0xFFFF) as u16),
+            0b010111 => Smc((iss & 0xFFFF) as u16),
+            0b011000 => MsrMrsSystem,
+            0b100000 => InstructionAbort {
+                kind: iss.into(),
+                level: (iss & 0b11) as u8,
+            },
+            0b100001 => InstructionAbort {
+                kind: iss.into(),
+                level: (iss & 0b11) as u8,
+            },
+            0b100010 => PCAlignmentFault,
+            0b100100 => DataAbort {
+                kind: iss.into(),
+                level: (iss & 0b11) as u8,
+            },
+            0b100101 => DataAbort {
+                kind: iss.into(),
+                level: (iss & 0b11) as u8,
+            },
+            0b100110 => SpAlignmentFault,
+            0b101000 => TrappedFpu,
+            0b101100 => TrappedFpu,
+            0b101111 => SError,
+            0b110000 => Breakpoint,
+            0b110001 => Breakpoint,
+            0b110010 => Step,
+            0b110011 => Step,
+            0b110100 => Watchpoint,
+            0b110101 => Watchpoint,
+            0b111000 => Breakpoint,
+            0b111100 => Brk((iss & 0xFFFF) as u16),
+            other => Other(other),
+        }
 
     }
 }

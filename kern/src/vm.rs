@@ -104,6 +104,16 @@ impl VMManager {
         info!("MMU is ready for core-{}/@sp={:016x}", affinity(), SP.get());
 
         // Lab 5 1.B
+        self.ready_core_cnt.fetch_add(1, Ordering::SeqCst);
+        // info!("HOW MANY {} {}", affinity(), self.ready_core_cnt.load(Ordering::SeqCst));
+        use crate::console::kprintln;
+        // kprintln!("{}", self.ready_core_cnt.load(Ordering::Relaxed));
+        while self.ready_core_cnt.load(Ordering::SeqCst) < pi::common::NCORES {}
+        /*
+        if (affinity() == 0) {
+            loop {}
+        }
+        */
         // unimplemented!("wait for other cores")
     }
 

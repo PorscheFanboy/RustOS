@@ -42,7 +42,8 @@ pub fn sys_sleep(ms: u32, tf: &mut TrapFrame) {
 ///  - current time as seconds
 ///  - fractional part of the current time, in nanoseconds.
 pub fn sys_time(tf: &mut TrapFrame) {
-    unimplemented!("sys_time()");
+    let t = current_time();
+    tf.xs[0] = t.as_micros() as u64;
 }
 
 /// Kills the current process.
@@ -68,7 +69,7 @@ pub fn sys_write(b: u8, tf: &mut TrapFrame) {
 /// In addition to the usual status value, this system call returns a
 /// parameter: the current process's ID.
 pub fn sys_getpid(tf: &mut TrapFrame) {
-    unimplemented!("sys_getpid()")
+    tf.xs[0] = tf.tpidr_el;
 }
 
 /// Creates a socket and saves the socket handle in the current process's
@@ -236,7 +237,6 @@ pub fn sys_write_str(va: usize, len: usize, tf: &mut TrapFrame) {
 
     match result {
         Ok(msg) => {
-            use alloc::string::String;
             kprint!("{}", msg);
 
             tf.xs[0] = msg.len() as u64;
@@ -250,16 +250,22 @@ pub fn sys_write_str(va: usize, len: usize, tf: &mut TrapFrame) {
 
 pub fn handle_syscall(num: u16, tf: &mut TrapFrame) {
     use crate::console::kprintln;
-    match num {
-        1 => {
+    match num as usize {
+        NR_SLEEP => {
             sys_sleep(tf.xs[0] as u32, tf);
         },
-        4 => {
+        NR_WRITE => {
             sys_write(tf.xs[0] as u8, tf);
-        }
-        6 => {
+        },
+        NR_WRITE_STR => {
             sys_write_str(tf.xs[0] as usize, tf.xs[1] as usize, tf);
-        }
+        },
+        NR_GETPID => {
+            sys_getpid(tf);
+        },
+        NR_TIME => {
+            sys_time(tf);
+        },
         _ => (),
     }
 }

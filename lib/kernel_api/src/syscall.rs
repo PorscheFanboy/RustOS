@@ -39,11 +39,21 @@ pub fn sleep(span: Duration) -> OsResult<Duration> {
 }
 
 pub fn time() -> Duration {
-    unimplemented!("time()")
+    let mut time: u64;
+    unsafe {
+        asm!("svc $1
+              mov $0, x0"
+             : "=r"(time)
+             : "i"(NR_TIME)
+             : "x0"
+             : "volatile");
+    }
+    return Duration::from_micros(time);
 }
 
 pub fn exit() -> ! {
-    unimplemented!("exit()")
+    loop {}
+    // unimplemented!("exit()")
 }
 
 pub fn write(b: u8) {
@@ -59,9 +69,9 @@ pub fn write(b: u8) {
 
 pub fn write_str(msg: &str) {
     let mut len = 0;
-    let mut arr: [u8; 100] = [0; 100];
+    let mut buffer: [u8; 100] = [' ' as u8; 100];
     for b in msg.bytes() {
-        arr[len] = b;
+        buffer[len] = b;
         len += 1;
     }
 
@@ -70,14 +80,23 @@ pub fn write_str(msg: &str) {
               mov x1, $1
               svc $2"
              :
-             : "r"(arr.as_ptr()), "r"(len), "i"(NR_WRITE_STR)
-             :
+             : "r"(buffer.as_ptr()), "r"(len), "i"(NR_WRITE_STR)
+             : "x0", "x7"
              : "volatile");
     }
 }
 
 pub fn getpid() -> u64 {
-    unimplemented!("getpid()")
+    let mut pid: u64;
+    unsafe {
+        asm!("svc $1
+              mov $0, x0"
+             : "=r"(pid)
+             : "i"(NR_GETPID)
+             : "x0"
+             : "volatile");
+    }
+    return pid;
 }
 
 pub fn sock_create() -> SocketDescriptor {
