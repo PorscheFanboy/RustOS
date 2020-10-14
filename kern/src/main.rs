@@ -76,7 +76,7 @@ use fs::FileSystem;
 use net::uspi::Usb;
 use net::GlobalEthernetDriver;
 use process::GlobalScheduler;
-use traps::irq::{Fiq, GlobalIrq};
+use traps::irq::{Fiq, GlobalIrq, LocalIrq};
 use vm::VMManager;
 
 #[cfg_attr(not(test), global_allocator)]
@@ -86,6 +86,7 @@ pub static SCHEDULER: GlobalScheduler = GlobalScheduler::uninitialized();
 pub static VMM: VMManager = VMManager::uninitialized();
 pub static USB: Usb = Usb::uninitialized();
 pub static GLOBAL_IRQ: GlobalIrq = GlobalIrq::new();
+pub static LOCAL_IRQ: LocalIrq = LocalIrq::new();
 pub static FIQ: Fiq = Fiq::new();
 pub static ETHERNET: GlobalEthernetDriver = GlobalEthernetDriver::uninitialized();
 

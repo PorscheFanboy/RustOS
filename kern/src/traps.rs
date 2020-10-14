@@ -16,6 +16,7 @@ use crate::traps::irq::IrqHandlerRegistry;
 use crate::console::kprintln;
 use crate::shell;
 use crate::GLOBAL_IRQ;
+use crate::LOCAL_IRQ;
 
 #[repr(u16)]
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
@@ -70,7 +71,8 @@ pub extern "C" fn handle_exception(info: Info, esr: u32, tf: &mut TrapFrame) {
             }
         },
         Kind::Irq => {
-            GLOBAL_IRQ.invoke(Interrupt::Timer1, tf);
+            // GLOBAL_IRQ.invoke(Interrupt::Timer1, tf);
+            LOCAL_IRQ.invoke(LocalInterrupt::LocalTimer, tf);
             return;
         }
         _ => {

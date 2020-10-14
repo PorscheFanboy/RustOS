@@ -22,11 +22,13 @@ use crate::{ETHERNET, USB};
 
 use crate::VMM;
 use crate::GLOBAL_IRQ;
+use crate::LOCAL_IRQ;
 use crate::shell;
 use crate::SCHEDULER;
 use crate::console::kprintln;
 use pi::timer::*;
 use pi::interrupt::*;
+use pi::local_interrupt::*;
 
 /// Process scheduler for the entire machine.
 #[derive(Debug)]
@@ -72,6 +74,7 @@ impl GlobalScheduler {
         loop {
             let rtn = self.critical(|scheduler| scheduler.switch_to(tf));
             if let Some(id) = rtn {
+                // kprintln!("{} {}", affinity(), id);
                 trace!(
                     "[core-{}] switch_to {:?}, pc: {:x}, lr: {:x}, x29: {:x}, x28: {:x}, x27: {:x}",
                     affinity(),
@@ -122,8 +125,12 @@ impl GlobalScheduler {
         self.switch_to(&mut tf);
         // kprintln!("{:x} {:x}", tf.ttbr0_el, tf.ttbr1_el);
         // kprintln!("STARTED");
-        // self.initialize_global_timer_interrupt();
+        // kprintln!("QER {}", tf.tpidr_el);
 
+        if affinity() == 0 {
+            self.initialize_global_timer_interrupt();
+        }
+        self.initialize_local_timer_interrupt();
 
         let mut ptr = Box::new(SP.get());
         unsafe {
@@ -173,10 +180,12 @@ impl GlobalScheduler {
     /// Registers a timer handler with `Usb::start_kernel_timer` which will
     /// invoke `poll_ethernet` after 1 second.
     pub fn initialize_global_timer_interrupt(&self) {
+        /*
         let mut int_controller = Controller::new();
         int_controller.enable(Interrupt::Timer1);
         tick_in(TICK);
         GLOBAL_IRQ.register(Interrupt::Timer1, Box::new(timer_handle));
+        */
     }
 
     /// Initializes the per-core local timer interrupt with `pi::local_interrupt`.
@@ -184,7 +193,10 @@ impl GlobalScheduler {
     /// every `TICK` duration, which is defined in `param.rs`.
     pub fn initialize_local_timer_interrupt(&self) {
         // Lab 5 2.C
-        unimplemented!("initialize_local_timer_interrupt()")
+        let mut int_controller = LocalController::new(affinity());
+        int_controller.enable_local_timer();
+        local_tick_in(affinity(), TICK);
+        LOCAL_IRQ.register(LocalInterrupt::LocalTimer, Box::new(local_timer_handle));
     }
 
     /// Initializes the scheduler and add userspace processes to the Scheduler.
@@ -264,14 +276,20 @@ impl Scheduler {
     /// If the `processes` queue is empty or there is no current process,
     /// returns `false`. Otherwise, returns `true`.
     fn schedule_out(&mut self, new_state: State, tf: &mut TrapFrame) -> bool {
+        // kprintln!("QWER {}", tf.tpidr_el);
         for i in 0..self.processes.len() {
             match self.processes[i].state {
                 State::Running => {
-                    self.processes[i].state = new_state;
-                    self.processes[i].context = Box::new(*tf);
-                    let p = self.processes.remove(i).unwrap();
-                    self.processes.push_back(p);
-                    return true;
+                    if tf.tpidr_el == self.processes[i].context.tpidr_el {
+                        // self.processes[i].state = new_state;
+                        // self.processes[i].context = Box::new(*tf);
+                        let mut p = self.processes.remove(i).unwrap();
+                        p.state = new_state;
+                        // p.context = Box::new(*tf);
+                        *p.context = *tf;
+                        self.processes.push_back(p);
+                        return true;
+                    }
                 },
                 _ => (),
             }
@@ -292,6 +310,7 @@ impl Scheduler {
                 self.processes[i].state = State::Running;
                 *tf = *self.processes[i].context;
                 let id = self.processes[i].context.tpidr_el;
+                // kprintln!("{} {}", affinity(), id);
                 let p = self.processes.remove(i).unwrap();
                 self.processes.push_front(p);
                 return Some(id);
@@ -362,6 +381,12 @@ pub extern "C" fn  test_user_process() -> ! {
 
 pub fn timer_handle(tf: &mut TrapFrame) {
     tick_in(TICK);
+    SCHEDULER.switch(State::Ready, tf);
+    return;
+}
+
+pub fn local_timer_handle(tf: &mut TrapFrame) {
+    local_tick_in(affinity(), TICK);
     SCHEDULER.switch(State::Ready, tf);
     return;
 }
