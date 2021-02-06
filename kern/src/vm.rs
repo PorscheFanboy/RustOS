@@ -107,7 +107,7 @@ impl VMManager {
         self.ready_core_cnt.fetch_add(1, Ordering::SeqCst);
         // info!("HOW MANY {} {}", affinity(), self.ready_core_cnt.load(Ordering::SeqCst));
         use crate::console::kprintln;
-        // kprintln!("{}", self.ready_core_cnt.load(Ordering::Relaxed));
+        kprintln!("ready {}", self.ready_core_cnt.load(Ordering::Relaxed));
         while self.ready_core_cnt.load(Ordering::SeqCst) < pi::common::NCORES {}
         /*
         if (affinity() == 0) {

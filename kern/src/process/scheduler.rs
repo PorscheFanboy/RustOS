@@ -25,7 +25,7 @@ use crate::GLOBAL_IRQ;
 use crate::LOCAL_IRQ;
 use crate::shell;
 use crate::SCHEDULER;
-use crate::console::kprintln;
+use crate::console::{kprintln, kprint};
 use pi::timer::*;
 use pi::interrupt::*;
 use pi::local_interrupt::*;
@@ -62,6 +62,8 @@ impl GlobalScheduler {
     /// the documentation on `Scheduler::schedule_out()` and `Scheduler::switch_to()`.
     pub fn switch(&self, new_state: State, tf: &mut TrapFrame) -> Id {
         self.critical(|scheduler| scheduler.schedule_out(new_state, tf));
+        // spin_sleep(Duration::from_millis(50));
+        // kprint!("{}", affinity());
         self.switch_to(tf)
     }
 
@@ -72,9 +74,10 @@ impl GlobalScheduler {
     /// Returns the process's ID when a ready process is found.
     pub fn switch_to(&self, tf: &mut TrapFrame) -> Id {
         loop {
+            // kprintln!("switch_to {}", affinity());
+            // kprint!("{}", affinity());
             let rtn = self.critical(|scheduler| scheduler.switch_to(tf));
             if let Some(id) = rtn {
-                // kprintln!("{} {}", affinity(), id);
                 trace!(
                     "[core-{}] switch_to {:?}, pc: {:x}, lr: {:x}, x29: {:x}, x28: {:x}, x27: {:x}",
                     affinity(),
@@ -103,16 +106,17 @@ impl GlobalScheduler {
     /// preemptive scheduling. This method should not return under normal
     /// conditions.
     pub fn start(&self) -> ! {
-        /*
         extern "C" {
             static _start: u64;
         }
+        /*
         let mut p = Process::new().unwrap();
         p.context.sp_el = p.stack.top().as_u64();
         let ptr = run_shell as *const u64;
         p.context.elr_el = ptr as u64;
         */
-        let mut tf = Box::new(TrapFrame{
+        kprintln!("start {}", affinity());
+        let mut tf = TrapFrame{
             ttbr0_el: 0,
             ttbr1_el: 0,
             elr_el: 0,
@@ -121,7 +125,7 @@ impl GlobalScheduler {
             tpidr_el: 0,
             qs: [0; 32],
             xs: [0; 32],
-        });
+        };
         self.switch_to(&mut tf);
         // kprintln!("{:x} {:x}", tf.ttbr0_el, tf.ttbr1_el);
         // kprintln!("STARTED");
@@ -132,11 +136,14 @@ impl GlobalScheduler {
         }
         self.initialize_local_timer_interrupt();
 
-        let mut ptr = Box::new(SP.get());
+        // let mut ptr: u64 = 17455984178246451368;
         unsafe {
             // let start_addr: *const u64 = & _start;
             // kprintln!("{} {}", ptr as u64, start_addr as u64);
             // sti();
+            // let mut pptr = *VMM.kern_pt.lock();
+            // kprintln!("Ptr {:?}", &ptr as *const _);
+            kprintln!("{:?}", &tf as *const TrapFrame);
             /*
             asm!("mov sp, $0
                   bl context_restore
@@ -144,15 +151,30 @@ impl GlobalScheduler {
                   mov sp, x0
                   mov x0, #0x0
                   eret"
-                  :: "r"(tf)
+                  :: "r"(&tf as *const TrapFrame)
                   :: "volatile");
                   */
+            // let mut ptr = Box::new(SP.get());
+            /*
             asm!("mov sp, $0
+                  str $0, [$1, #8]
                   bl context_restore
-                  mov sp, $1
-                  mov x0, #0x0
+                  str x29, [$2, #8]
+                  ldr x29, [$2]
+                  mov sp, x29
+                  ldr x29, [$3]
                   eret"
-                  :: "r"(tf), "r"(*ptr)
+                  :: "r"(&tf as *const TrapFrame), "r"(&tf.xs[9] as *const u64), 
+                  "r"(&tf.xs[10] as *const u64), "r"(&tf.xs[11] as *const u64)
+                  :: "volatile");
+            */
+            asm!("mov sp, $0
+                  mov x29, $0
+                  bl context_restore
+                  mov sp, x29
+                  ldr x29, #0
+                  eret"
+                  :: "r"(&tf as *const TrapFrame)
                   :: "volatile");
         }
         /*
@@ -204,7 +226,7 @@ impl GlobalScheduler {
         *self.0.lock() = Some(Scheduler::new());
         use shim::path::Path;
         for i in 0..4 {
-            let p = Process::load(Path::new("/fib")).unwrap();
+            let p = Process::load(Path::new("/fib.bin")).unwrap();
             self.add(p);
         }
     }
@@ -262,7 +284,7 @@ impl Scheduler {
             Some(id) => self.last_id = Some(id + 1),
         }
         process.context.tpidr_el = self.last_id.unwrap();
-        // process.state = State::Ready;
+        process.state = State::Ready;
         self.processes.push_back(process);
         // kprintln!("{:?}",self.processes);
         return self.last_id;
@@ -277,9 +299,17 @@ impl Scheduler {
     /// returns `false`. Otherwise, returns `true`.
     fn schedule_out(&mut self, new_state: State, tf: &mut TrapFrame) -> bool {
         // kprintln!("QWER {}", tf.tpidr_el);
+        /*
+        kprintln!("schedule out");
+        for i in 0..self.processes.len() {
+            kprintln!("{} {:?}", self.processes[i].context.tpidr_el, self.processes[i].state);
+        }
+        */
+        // kprintln!("{}", tf.tpidr_el);
         for i in 0..self.processes.len() {
             match self.processes[i].state {
                 State::Running => {
+                    // kprintln!("{} {}", self.processes[i].context.tpidr_el, tf.tpidr_el);
                     if tf.tpidr_el == self.processes[i].context.tpidr_el {
                         // self.processes[i].state = new_state;
                         // self.processes[i].context = Box::new(*tf);
@@ -288,6 +318,7 @@ impl Scheduler {
                         // p.context = Box::new(*tf);
                         *p.context = *tf;
                         self.processes.push_back(p);
+                        // sev();
                         return true;
                     }
                 },
@@ -305,14 +336,21 @@ impl Scheduler {
     /// If there is no process to switch to, returns `None`. Otherwise, returns
     /// `Some` of the next process`s process ID.
     fn switch_to(&mut self, tf: &mut TrapFrame) -> Option<Id> {
+        /*
+        kprintln!("switch to");
+        for i in 0..self.processes.len() {
+            kprintln!("{} {:?}", self.processes[i].context.tpidr_el, self.processes[i].state);
+        }
+        */
         for i in 0..self.processes.len() {
             if self.processes[i].is_ready() {
                 self.processes[i].state = State::Running;
                 *tf = *self.processes[i].context;
+                // kprintln!("{}", tf.tpidr_el);
                 let id = self.processes[i].context.tpidr_el;
-                // kprintln!("{} {}", affinity(), id);
                 let p = self.processes.remove(i).unwrap();
                 self.processes.push_front(p);
+                // kprintln!("running {} {}", self.processes[i].context.tpidr_el, tf.tpidr_el);
                 return Some(id);
             }
         }
@@ -385,8 +423,10 @@ pub fn timer_handle(tf: &mut TrapFrame) {
     return;
 }
 
+
 pub fn local_timer_handle(tf: &mut TrapFrame) {
     local_tick_in(affinity(), TICK);
+    // kprintln!("back {}", tf.tpidr_el);
     SCHEDULER.switch(State::Ready, tf);
     return;
 }

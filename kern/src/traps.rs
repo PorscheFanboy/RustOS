@@ -13,7 +13,7 @@ use self::syscall::handle_syscall;
 use crate::percore;
 use crate::traps::irq::IrqHandlerRegistry;
 
-use crate::console::kprintln;
+use crate::console::{kprintln, kprint};
 use crate::shell;
 use crate::GLOBAL_IRQ;
 use crate::LOCAL_IRQ;
@@ -72,7 +72,12 @@ pub extern "C" fn handle_exception(info: Info, esr: u32, tf: &mut TrapFrame) {
         },
         Kind::Irq => {
             // GLOBAL_IRQ.invoke(Interrupt::Timer1, tf);
+            // kprintln!("sss {}", tf.tpidr_el);
             LOCAL_IRQ.invoke(LocalInterrupt::LocalTimer, tf);
+            use aarch64::*;
+            // kprint!("{}", affinity());
+
+            // kprintln!("ttt {}", tf.tpidr_el);
             return;
         }
         _ => {

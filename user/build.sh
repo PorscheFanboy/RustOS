@@ -34,5 +34,5 @@ sudo mount $LOP1 $MNT
 trap "sudo umount $MNT; rmdir $MNT; sudo losetup -d $LO" EXIT
 
 for d in ${PROGS[@]}; do
-    sudo cp $d/build/$d.bin $MNT/$d
+    sudo cp $d/build/$d.bin $MNT/$d.bin
 done
