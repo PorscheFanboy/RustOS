@@ -75,7 +75,7 @@ pub extern "C" fn handle_exception(info: Info, esr: u32, tf: &mut TrapFrame) {
             // kprintln!("sss {}", tf.tpidr_el);
             LOCAL_IRQ.invoke(LocalInterrupt::LocalTimer, tf);
             use aarch64::*;
-            // kprint!("{}", affinity());
+            kprint!("{}", affinity());
 
             // kprintln!("ttt {}", tf.tpidr_el);
             return;

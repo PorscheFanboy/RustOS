@@ -77,6 +77,7 @@ impl GlobalScheduler {
             // kprintln!("switch_to {}", affinity());
             // kprint!("{}", affinity());
             let rtn = self.critical(|scheduler| scheduler.switch_to(tf));
+            sev();
             if let Some(id) = rtn {
                 trace!(
                     "[core-{}] switch_to {:?}, pc: {:x}, lr: {:x}, x29: {:x}, x28: {:x}, x27: {:x}",
@@ -90,8 +91,10 @@ impl GlobalScheduler {
                 );
                 return id;
             }
-
+            // kprintln!("switched {}", affinity());
+            // sev();
             aarch64::wfi();
+            // aarch64::wfi();
         }
     }
 
@@ -128,7 +131,7 @@ impl GlobalScheduler {
         };
         self.switch_to(&mut tf);
         // kprintln!("{:x} {:x}", tf.ttbr0_el, tf.ttbr1_el);
-        // kprintln!("STARTED");
+        kprintln!("STARTED {}", affinity());
         // kprintln!("QER {}", tf.tpidr_el);
 
         if affinity() == 0 {
@@ -168,11 +171,12 @@ impl GlobalScheduler {
                   "r"(&tf.xs[10] as *const u64), "r"(&tf.xs[11] as *const u64)
                   :: "volatile");
             */
-            asm!("mov sp, $0
-                  mov x29, $0
-                  bl context_restore
-                  mov sp, x29
-                  ldr x29, #0
+            asm!("mov   sp, $0
+                  mov   x29, $0
+                  bl    context_restore
+                  stp   x28, x28, [SP, #-16]!
+                  stp   lr, xzr, [SP, #-16]!
+                  mov   sp, x29
                   eret"
                   :: "r"(&tf as *const TrapFrame)
                   :: "volatile");
@@ -225,7 +229,7 @@ impl GlobalScheduler {
     pub unsafe fn initialize(&self) {
         *self.0.lock() = Some(Scheduler::new());
         use shim::path::Path;
-        for i in 0..4 {
+        for i in 0..2 {
             let p = Process::load(Path::new("/fib.bin")).unwrap();
             self.add(p);
         }
@@ -318,7 +322,7 @@ impl Scheduler {
                         // p.context = Box::new(*tf);
                         *p.context = *tf;
                         self.processes.push_back(p);
-                        // sev();
+                        sev();
                         return true;
                     }
                 },
