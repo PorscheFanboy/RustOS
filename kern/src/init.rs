@@ -133,14 +133,14 @@ unsafe fn kinit2() -> ! {
 
 unsafe fn kmain2() -> ! {
     // Lab 5 1.A
-    kprintln!("{}", MPIDR_EL1.get_value(MPIDR_EL1::Aff0));
-    kprintln!("{}", MPIDR_EL1.get_value(MPIDR_EL1::Aff0));
-    kprintln!("{}", MPIDR_EL1.get_value(MPIDR_EL1::Aff0));
+    // kprintln!("{}", MPIDR_EL1.get_value(MPIDR_EL1::Aff0));
+    // kprintln!("{}", MPIDR_EL1.get_value(MPIDR_EL1::Aff0));
+    // kprintln!("{}", MPIDR_EL1.get_value(MPIDR_EL1::Aff0));
     ((SPINNING_BASE as usize + MPIDR_EL1.get_value(MPIDR_EL1::Aff0) as usize * 8) as *mut usize).write_volatile(0);
     VMM.wait();
     // kprintln!("{}", current_el());
     // kprintln!("CORE {}", MPIDR_EL1.get_value(MPIDR_EL1::Aff0));
-    // pi::timer::spin_sleep(core::time::Duration::from_millis((affinity() * 100) as u64));
+    // pi::timer::spin_sleep(core::time::Duration::from_millis((affinity() * 50) as u64));
     SCHEDULER.start();
     loop {
         kprintln!("CORE {}", MPIDR_EL1.get_value(MPIDR_EL1::Aff0));

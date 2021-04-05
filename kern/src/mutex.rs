@@ -38,6 +38,7 @@ impl<T> Mutex<T> {
     // need any real synchronization.
     pub fn try_lock(&self) -> Option<MutexGuard<T>> {
         if !is_mmu_ready() {
+            assert!(aarch64::affinity() == 0, "Non Zero");
             let this = 0;
             if !self.lock.load(Ordering::Relaxed) || self.owner.load(Ordering::Relaxed) == this {
                 self.lock.store(true, Ordering::Relaxed);
@@ -47,8 +48,10 @@ impl<T> Mutex<T> {
                 return None;
             }
         }
-        // if self.lock.compare_and_swap(false, true, Ordering::Acquire) {
+        // if !self.lock.compare_and_swap(false, true, Ordering::SeqCst) {
         if !self.lock.swap(true, Ordering::Acquire) {
+            getcpu();
+            // self.owner.store(affinity(), Ordering::SeqCst);
             return Some(MutexGuard { lock: &self });
         }
         return None;
@@ -61,7 +64,9 @@ impl<T> Mutex<T> {
         // Wait until we can "aquire" the lock, then "acquire" it.
         loop {
             match self.try_lock() {
-                Some(guard) => return guard,
+                Some(guard) => {
+                    return guard;
+                },
                 None => continue,
             }
         }
@@ -72,6 +77,7 @@ impl<T> Mutex<T> {
             self.lock.store(false, Ordering::Relaxed);
             return;
         }
+        putcpu(affinity());
         self.lock.store(false, Ordering::Release);
     }
 }

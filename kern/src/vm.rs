@@ -101,13 +101,13 @@ impl VMManager {
             self.setup();
         }
 
-        info!("MMU is ready for core-{}/@sp={:016x}", affinity(), SP.get());
+        // info!("MMU is ready for core-{}/@sp={:016x}", affinity(), SP.get());
 
         // Lab 5 1.B
         self.ready_core_cnt.fetch_add(1, Ordering::SeqCst);
         // info!("HOW MANY {} {}", affinity(), self.ready_core_cnt.load(Ordering::SeqCst));
         use crate::console::kprintln;
-        kprintln!("ready {}", self.ready_core_cnt.load(Ordering::Relaxed));
+        // kprintln!("ready {}", self.ready_core_cnt.load(Ordering::Relaxed));
         while self.ready_core_cnt.load(Ordering::SeqCst) < pi::common::NCORES {}
         /*
         if (affinity() == 0) {
