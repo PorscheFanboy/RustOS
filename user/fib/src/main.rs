@@ -4,7 +4,7 @@
 
 mod cr0;
 
-use kernel_api::println;
+use kernel_api::{println, print};
 use kernel_api::syscall::{getpid, time};
 
 fn fib(n: u64) -> u64 {

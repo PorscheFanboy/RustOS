@@ -31,4 +31,18 @@ unsafe fn jump_to(addr: *mut u8) -> ! {
 
 fn kmain() -> ! {
     // FIXME: Implement the bootloader.
+    let mut mu = pi::uart::MiniUart::new();
+    mu.set_read_timeout(Duration::from_millis(750));
+    let mut bin = unsafe { core::slice::from_raw_parts_mut(BINARY_START, MAX_BINARY_SIZE) };
+    loop {
+        /*
+        while mu.has_byte() {
+            let _ = mu.read_byte();
+        }
+        */
+        match Xmodem::receive(&mut mu , &mut bin) {
+            Ok(_) => unsafe { jump_to(BINARY_START); },
+            Err(_) => continue,
+        }
+    }
 }
