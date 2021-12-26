@@ -28,3 +28,6 @@ We have ported it to use newer toolchains such as Rust 2018 edition,
 `cargo-xbuild` (instead of `xargo`), and `no_std` Rust with a minimal shim library
 (instead of custom built std).
 We’ve also developed it further to include topics such as virtual memory management, multicore scheduling, mutex designing, and implementing a networking stack.
+
+#Rust
+Working compiler version for lib/fat32 and lib/ttywrite: rustup default nightly-2020-10-01
