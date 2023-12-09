@@ -19,12 +19,15 @@ def load_target_dir():
         dst = open(CACHE).read().strip()
     if len(sys.argv) == 3:
         dst = sys.argv[2]
+    dst = "/home/jianhuali/Documents/image"
 
     if dst is None:
         os.system("lsblk")
         print("[!] Please provide a installation directory")
         dst = input("(input) > ").strip()
 
+
+    '''
     if not os.path.isdir(dst):
         print("[!] Please inesrt your sdcard (mounting point: %s)" % dst)
         print("    waiting", end="", flush=True)
@@ -33,6 +36,7 @@ def load_target_dir():
             print(".", end="", flush=True)
             time.sleep(1)
         print()
+    '''
 
     with open(CACHE, "w") as fd:
         fd.write(dst)

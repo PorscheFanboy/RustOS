@@ -36,8 +36,6 @@ if ! [ -x "$(command -v rustup)" ]; then
     export PATH=$HOME/.cargo/bin:$PATH
 fi
 
-<<<<<<< HEAD
-=======
 rustup default $VER
 rustup component add rust-src llvm-tools-preview clippy
 
@@ -64,4 +62,3 @@ fi
 popd
 
 echo "[!] Please add '$HOME/.cargo/bin' in your PATH"
->>>>>>> skeleton/lab5

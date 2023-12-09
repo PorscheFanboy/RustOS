@@ -29,5 +29,7 @@ We have ported it to use newer toolchains such as Rust 2018 edition,
 (instead of custom built std).
 We’ve also developed it further to include topics such as virtual memory management, multicore scheduling, mutex designing, and implementing a networking stack.
 
-#Rust
+## Rust
 Working compiler version for lib/fat32 and lib/ttywrite: rustup default nightly-2020-10-01
+
+cargo build --locked
